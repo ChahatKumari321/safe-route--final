@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — SafeRoute Karachi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="#" class="active" onclick="showTab('overview');return false">📊 Overview</a></li>
+        <li><a href="#" onclick="showTab('incidents');return false">📋 All Reports</a></li>
+        <li><a href="#" onclick="showTab('pending');return false">⏳ Pending Review</a></li>
+        <li><a href="/map.html">🗺 Safety Map</a></li>
+        <li style="margin-top:auto"><a href="#" onclick="Auth.logout();return false" style="color:var(--danger)">🚪 Logout</a></li>
+      </ul>
+    </aside>
+
+    <main class="dashboard-content">
+      <!-- OVERVIEW TAB -->
+      <div id="tab-overview">
+        <div class="page-header" style="padding-top:0">
+          <h1>⚙ Admin <span class="text-teal">Dashboard</span></h1>
+          <p class="text-muted">SafeRoute Karachi — Moderation Panel</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid-4 mb-3" id="statsCards">
+          <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-number" id="s-total">—</div><div class="stat-label">Total Reports</div></div>
+          <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-number" id="s-pending" style="color:var(--warning)">—</div><div class="stat-label">Pending</div></div>
+          <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-number" id="s-verified" style="color:var(--success)">—</div><div class="stat-label">Verified</div></div>
+          <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-number" id="s-rejected" style="color:var(--danger)">—</div><div class="stat-label">Rejected</div></div>
+        </div>
+
+        <div class="grid-2 mb-3">
+          <div class="card">
+            <h3 class="section-title">Reports by Category</h3>
+            <canvas id="categoryChart" height="250"></canvas>
+          </div>
+          <div class="card">
+            <h3 class="section-title">7-Day Submission Trend</h3>
+            <canvas id="trendChart" height="250"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">Top Reported Areas</h3>
+          <div id="areasTable"></div>
+        </div>
+      </div>
+
+      <!-- ALL INCIDENTS TAB -->
+      <div id="tab-incidents" class="hidden">
+        <div class="page-header" style="padding-top:0">
+          <div class="flex justify-between items-center">
+            <h1>All <span class="text-teal">Reports</span></h1>
+            <div style="display:flex;gap:0.5rem">
+              <select id="filterStatus" class="form-control" style="width:auto;font-size:0.85rem" onchange="loadAdminIncidents()">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="verified">Verified</option>
+                <option value="rejected">Rejected</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div id="alertBoxAdmin"></div>
+        <div id="incidentsTable"></div>
+      </div>
+
+      <!-- PENDING TAB -->
+      <div id="tab-pending" class="hidden">
+        <div class="page-header" style="padding-top:0">
+          <h1>⏳ Pending <span class="text-teal">Review</span></h1>
+          <p class="text-muted">Review and moderate community-submitted reports.</p>
+        </div>
+        <div id="alertBoxPending"></div>
+        <div id="pendingList"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- REVIEW MODAL -->
+  <div id="reviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem" class="hidden">
+    <div class="card" style="width:100%;max-width:550px;max-height:90vh;overflow-y:auto">
+      <div class="flex justify-between items-center mb-2">
+        <h3 style="margin:0">Review Report</h3>
+        <button onclick="closeModal()" style="background:none;border:none;color:var(--gray-300);font-size:1.5rem;cursor:pointer">×</button>
+      </div>
+      <div id="modalContent"></div>
+      <div class="form-group">
+        <label>Admin Comments (optional)</label>
+        <textarea id="adminComments" class="form-control" placeholder="Add a comment about your decision..."></textarea>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:1rem">
+        <button class="btn btn-success" onclick="updateStatus('verified')">✅ Verify</button>
+        <button class="btn btn-danger"  onclick="updateStatus('rejected')">❌ Reject</button>
+        <button class="btn btn-warning" onclick="updateStatus('expired')">🕐 Mark Expired</button>
+        <button class="btn btn-secondary" onclick="deleteIncidentAdmin()">🗑 Delete</button>
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    Auth.redirectIfNotLoggedIn();
+    Auth.redirectIfNotAdmin();
+    injectNavbar('admin');
+
+    let currentIncidentId = null;
+    let categoryChart = null;
+    let trendChart    = null;
+
+    function showTab(name) {
+      document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.add('hidden'));
+      document.getElementById('tab-' + name).classList.remove('hidden');
+      document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+      event?.target?.classList.add('active');
+      if (name === 'incidents') loadAdminIncidents();
+      if (name === 'pending')   loadPending();
+    }
+
+    // ─── LOAD STATS ───────────────────────────────────────────────────────────
+    async function loadStats() {
+      try {
+        const { ok, data } = await apiRequest('GET', '/admin/stats', null, true);
+        if (!ok || !data.success) return;
+
+        const s = data.data.status;
+        document.getElementById('s-total').textContent    = s.total;
+        document.getElementById('s-pending').textContent  = s.pending;
+        document.getElementById('s-verified').textContent = s.verified;
+        document.getElementById('s-rejected').textContent = s.rejected;
+
+        // Category chart
+        const catCtx = document.getElementById('categoryChart').getContext('2d');
+        if (categoryChart) categoryChart.destroy();
+        categoryChart = new Chart(catCtx, {
+          type: 'doughnut',
+          data: {
+            labels: data.data.categories.map(c => c.category_name.split('/')[0].trim()),
+            datasets: [{
+              data: data.data.categories.map(c => parseInt(c.count)),
+              backgroundColor: ['#e74c3c','#e67e22','#3498db','#9b59b6','#f39c12','#e91e63','#7f8c8d'],
+              borderColor: 'rgba(0,0,0,0.3)',
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            plugins: { legend: { labels: { color: '#f8fafc', font: { size: 11 } } } },
+            responsive: true,
+          }
+        });
+
+        // Trend chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        if (trendChart) trendChart.destroy();
+        trendChart = new Chart(trendCtx, {
+          type: 'bar',
+          data: {
+            labels: data.data.trend.map(t => t.day),
+            datasets: [{
+              label: 'Reports',
+              data: data.data.trend.map(t => parseInt(t.count)),
+              backgroundColor: 'rgba(0,180,216,0.5)',
+              borderColor: '#00b4d8',
+              borderWidth: 2,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+            plugins: { legend: { labels: { color: '#f8fafc' } } },
+            scales: {
+              x: { ticks: { color: '#94a3b8' }, grid: { color: '#1b2a3b' } },
+              y: { ticks: { color: '#94a3b8' }, grid: { color: '#1b2a3b' }, beginAtZero: true }
+            }
+          }
+        });
+
+        // Areas table
+        document.getElementById('areasTable').innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Area</th><th>Reports</th></tr></thead>
+              <tbody>
+                ${data.data.areas.map(a => `
+                  <tr>
+                    <td>${a.location_name}</td>
+                    <td><span class="badge badge-pending">${a.count}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (e) {
+        console.error('loadStats error:', e);
+      }
+    }
+
+    // ─── LOAD ADMIN INCIDENTS ──────────────────────────────────────────────────
+    async function loadAdminIncidents() {
+      const status = document.getElementById('filterStatus')?.value || '';
+      const container = document.getElementById('incidentsTable');
+      container.innerHTML = '<div class="spinner"></div>';
+
+      try {
+        const { ok, data } = await apiRequest('GET', `/admin/incidents?limit=100${status ? '&status='+status : ''}`, null, true);
+        if (!ok || !data.success) throw new Error();
+
+        if (data.data.length === 0) {
+          container.innerHTML = '<p class="text-muted text-center" style="padding:2rem">No incidents found.</p>';
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Reporter</th>
+                  <th>Location</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.data.map(inc => `
+                  <tr>
+                    <td>${inc.id}</td>
+                    <td style="max-width:180px"><a href="/incident.html?id=${inc.id}" style="font-weight:600">${inc.title.substring(0,50)}${inc.title.length>50?'...':''}</a></td>
+                    <td><span style="font-size:0.75rem;color:${inc.color_hex}">${inc.category_name.split('/')[0].trim()}</span></td>
+                    <td style="font-size:0.82rem">${inc.reporter_name}</td>
+                    <td style="font-size:0.82rem">${inc.location_name.substring(0,30)}</td>
+                    <td>${statusBadge(inc.status)}</td>
+                    <td style="font-size:0.78rem;white-space:nowrap">${timeAgo(inc.created_at)}</td>
+                    <td>
+                      <button class="btn btn-primary btn-sm" onclick="openReview(${inc.id})">Review</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch {
+        container.innerHTML = '<p class="text-danger">Failed to load incidents.</p>';
+      }
+    }
+
+    // ─── LOAD PENDING ─────────────────────────────────────────────────────────
+    async function loadPending() {
+      const container = document.getElementById('pendingList');
+      container.innerHTML = '<div class="spinner"></div>';
+      try {
+        const { ok, data } = await apiRequest('GET', '/admin/incidents?status=pending&limit=100', null, true);
+        if (!ok || !data.success) throw new Error();
+
+        if (data.data.length === 0) {
+          container.innerHTML = '<div class="alert alert-success">✅ No pending reports! All caught up.</div>';
+          return;
+        }
+
+        container.innerHTML = data.data.map(inc => `
+          <div class="incident-card" style="border-left-color:${inc.color_hex}">
+            <div class="flex justify-between items-center mb-1">
+              <span style="font-size:0.75rem;color:${inc.color_hex};font-weight:700">${inc.category_name}</span>
+              ${statusBadge(inc.status)}
+            </div>
+            <h4>${inc.title}</h4>
+            <p style="font-size:0.82rem;color:var(--gray-300);margin:0.3rem 0">${inc.description.substring(0,120)}...</p>
+            <div class="meta">
+              <span>📍 ${inc.location_name}</span>
+              <span>👤 ${inc.reporter_name}</span>
+              <span>🕐 ${timeAgo(inc.created_at)}</span>
+            </div>
+            <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" onclick="openReview(${inc.id})">Review</button>
+              <a href="/incident.html?id=${inc.id}" class="btn btn-secondary btn-sm" target="_blank">View Details</a>
+            </div>
+          </div>
+        `).join('');
+      } catch {
+        container.innerHTML = '<p class="text-danger">Failed to load pending reports.</p>';
+      }
+    }
+
+    // ─── REVIEW MODAL ─────────────────────────────────────────────────────────
+    async function openReview(id) {
+      currentIncidentId = id;
+      document.getElementById('adminComments').value = '';
+      document.getElementById('modalContent').innerHTML = '<div class="spinner"></div>';
+      document.getElementById('reviewModal').classList.remove('hidden');
+      document.getElementById('reviewModal').style.display = 'flex';
+
+      try {
+        const { ok, data } = await apiRequest('GET', `/incidents/${id}`);
+        if (!ok || !data.success) throw new Error();
+        const inc = data.data;
+        document.getElementById('modalContent').innerHTML = `
+          <div style="margin-bottom:1rem;padding:1rem;background:var(--navy);border-radius:var(--radius)">
+            <div style="font-size:0.75rem;color:${inc.color_hex};font-weight:700;margin-bottom:0.3rem">${inc.category_name}</div>
+            <h4 style="margin-bottom:0.3rem">${inc.title}</h4>
+            <p style="font-size:0.82rem;color:var(--gray-300);margin-bottom:0.5rem">${inc.description}</p>
+            <div style="font-size:0.78rem;color:var(--gray-500)">
+              📍 ${inc.location_name} | 👤 ${inc.reporter_name} | 🕐 ${formatDate(inc.created_at)}
+            </div>
+            <div style="margin-top:0.5rem">${statusBadge(inc.status)}</div>
+          </div>
+        `;
+      } catch {
+        document.getElementById('modalContent').innerHTML = '<p class="text-danger">Failed to load details.</p>';
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('reviewModal').classList.add('hidden');
+      document.getElementById('reviewModal').style.display = 'none';
+      currentIncidentId = null;
+    }
+
+    async function updateStatus(status) {
+      if (!currentIncidentId) return;
+      const comments = document.getElementById('adminComments').value.trim();
+
+      try {
+        const { ok, data } = await apiRequest('PATCH', `/admin/incidents/${currentIncidentId}/status`, { status, comments }, true);
+        if (ok && data.success) {
+          closeModal();
+          showAlert('alertBoxAdmin', `Incident marked as ${status} successfully.`, 'success');
+          showAlert('alertBoxPending', `Incident marked as ${status} successfully.`, 'success');
+          loadStats();
+          loadPending();
+          if (!document.getElementById('tab-incidents').classList.contains('hidden')) loadAdminIncidents();
+        } else {
+          alert(data.message || 'Failed to update status.');
+        }
+      } catch {
+        alert('Network error.');
+      }
+    }
+
+    async function deleteIncidentAdmin() {
+      if (!currentIncidentId) return;
+      if (!confirm('Permanently delete this incident? This cannot be undone.')) return;
+
+      try {
+        const { ok, data } = await apiRequest('DELETE', `/admin/incidents/${currentIncidentId}`, null, true);
+        if (ok) {
+          closeModal();
+          showAlert('alertBoxAdmin', 'Incident deleted.', 'success');
+          loadStats();
+          loadPending();
+          if (!document.getElementById('tab-incidents').classList.contains('hidden')) loadAdminIncidents();
+        } else {
+          alert(data.message || 'Delete failed.');
+        }
+      } catch {
+        alert('Network error.');
+      }
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('reviewModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    loadStats();
+  </script>
+</body>
+</html>

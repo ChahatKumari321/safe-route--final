@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incident Details — SafeRoute Karachi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+
+  <div class="container" style="padding-top:2rem;padding-bottom:3rem">
+    <div style="margin-bottom:1.5rem">
+      <a href="javascript:history.back()" class="btn btn-secondary btn-sm">← Back</a>
+      <a href="/map.html" class="btn btn-secondary btn-sm">🗺 View on Map</a>
+    </div>
+
+    <div id="alertBox"></div>
+    <div id="incidentContent"><div class="spinner"></div></div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    injectNavbar('');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const incidentId = urlParams.get('id');
+
+    if (!incidentId) {
+      document.getElementById('incidentContent').innerHTML = '<p class="text-danger">No incident ID provided.</p>';
+    } else {
+      loadIncident();
+    }
+
+    async function loadIncident() {
+      try {
+        const { ok, data } = await apiRequest('GET', `/incidents/${incidentId}`);
+        if (!ok || !data.success) {
+          document.getElementById('incidentContent').innerHTML = '<p class="text-danger">Incident not found.</p>';
+          return;
+        }
+
+        const inc = data.data;
+        document.title = `${inc.title} — SafeRoute Karachi`;
+
+        document.getElementById('incidentContent').innerHTML = `
+          <div class="detail-header" style="border-left-color:${inc.color_hex}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+              <div>
+                <div style="font-size:0.8rem;color:${inc.color_hex};font-weight:700;margin-bottom:0.5rem">${inc.category_name}</div>
+                <h1 style="font-size:1.6rem;margin-bottom:0.5rem">${inc.title}</h1>
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;font-size:0.85rem;color:var(--gray-300)">
+                  <span>📍 ${inc.location_name}</span>
+                  <span>👤 Reported by ${inc.reporter_name}</span>
+                  <span>🕐 ${timeAgo(inc.created_at)}</span>
+                </div>
+              </div>
+              <div>${statusBadge(inc.status)}</div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:2rem">
+            <div class="card">
+              <h3 class="section-title">📋 Description</h3>
+              <p style="line-height:1.8">${inc.description}</p>
+
+              <div style="margin-top:1.5rem">
+                <h3 class="section-title">📅 Timeline</h3>
+                <div class="timeline-item">
+                  <div class="timeline-dot"></div>
+                  <div>
+                    <div style="font-weight:600;font-size:0.88rem">Incident occurred</div>
+                    <div style="font-size:0.82rem;color:var(--gray-300)">${formatDate(inc.incident_datetime)}</div>
+                  </div>
+                </div>
+                <div class="timeline-item">
+                  <div class="timeline-dot" style="background:var(--teal-dark)"></div>
+                  <div>
+                    <div style="font-weight:600;font-size:0.88rem">Reported to community</div>
+                    <div style="font-size:0.82rem;color:var(--gray-300)">${formatDate(inc.created_at)}</div>
+                  </div>
+                </div>
+                ${inc.verifications && inc.verifications.length > 0 ? inc.verifications.map(v => `
+                  <div class="timeline-item">
+                    <div class="timeline-dot" style="background:${v.decision==='verified'?'var(--success)':v.decision==='rejected'?'var(--danger)':'var(--gray-300)'}"></div>
+                    <div>
+                      <div style="font-weight:600;font-size:0.88rem">Admin ${v.decision} this report</div>
+                      <div style="font-size:0.82rem;color:var(--gray-300)">${formatDate(v.created_at)}</div>
+                      ${v.comments ? `<div style="font-size:0.82rem;color:var(--gray-100);margin-top:0.3rem;padding:0.4rem;background:var(--navy);border-radius:var(--radius)">${v.comments}</div>` : ''}
+                    </div>
+                  </div>
+                `).join('') : ''}
+              </div>
+            </div>
+
+            <div>
+              <div class="card mb-2">
+                <h3 class="section-title">📍 Location</h3>
+                <div id="detailMap" style="height:280px;border-radius:var(--radius);margin-bottom:0.75rem"></div>
+                <p style="font-size:0.82rem;color:var(--gray-300)">
+                  Coordinates: ${parseFloat(inc.latitude).toFixed(5)}, ${parseFloat(inc.longitude).toFixed(5)}
+                </p>
+                <a href="/map.html" class="btn btn-secondary btn-sm w-100 mt-1">View on Full Map</a>
+              </div>
+
+              <div class="card">
+                <h3 class="section-title">ℹ Verification Status</h3>
+                ${statusBadge(inc.status)}
+                <p style="font-size:0.82rem;color:var(--gray-300);margin-top:0.5rem">
+                  ${inc.status === 'pending'  ? 'This report is awaiting administrator review. It may or may not be accurate.' : ''}
+                  ${inc.status === 'verified' ? 'An administrator has reviewed and verified this report as credible community information.' : ''}
+                  ${inc.status === 'rejected' ? 'This report was reviewed and rejected by an administrator.' : ''}
+                  ${inc.status === 'expired'  ? 'This report has been marked as expired/outdated.' : ''}
+                </p>
+                <div class="disclaimer-banner mt-2" style="margin-bottom:0">
+                  <span class="disc-icon">⚠️</span>
+                  <span style="font-size:0.75rem">Community reports are not official records. For emergencies: Police <strong>15</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Init detail map
+        const detailMap = L.map('detailMap').setView([inc.latitude, inc.longitude], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(detailMap);
+
+        const color = getCategoryColor(inc.category_id, inc.color_hex);
+        createIncidentMarker(inc.latitude, inc.longitude, color)
+          .addTo(detailMap)
+          .bindPopup(`<div style="font-size:0.82rem"><strong>${inc.title}</strong><br>${inc.location_name}</div>`)
+          .openPopup();
+
+      } catch (e) {
+        document.getElementById('incidentContent').innerHTML = '<p class="text-danger">Failed to load incident details.</p>';
+      }
+    }
+  </script>
+</body>
+</html>

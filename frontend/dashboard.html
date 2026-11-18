@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — SafeRoute Karachi</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar">
+      <ul class="sidebar-nav">
+        <li><a href="#" class="active" onclick="showTab('overview');return false">📊 Overview</a></li>
+        <li><a href="#" onclick="showTab('myReports');return false">📋 My Reports</a></li>
+        <li><a href="/report.html">➕ New Report</a></li>
+        <li><a href="/map.html">🗺 Safety Map</a></li>
+        <li><a href="#" onclick="Auth.logout();return false" style="color:var(--danger)">🚪 Logout</a></li>
+      </ul>
+    </aside>
+
+    <!-- Content -->
+    <main class="dashboard-content">
+      <!-- Overview Tab -->
+      <div id="tab-overview">
+        <div class="page-header" style="padding-top:0">
+          <h1>Welcome, <span id="userName" class="text-teal">User</span></h1>
+          <p class="text-muted">Your SafeRoute Karachi dashboard</p>
+        </div>
+
+        <div class="disclaimer-banner mb-3">
+          <span class="disc-icon">⚠️</span>
+          <span>SafeRoute Karachi does not guarantee route safety. For emergencies: Police <strong>15</strong> | Rescue <strong>1122</strong> | Edhi <strong>115</strong></span>
+        </div>
+
+        <div class="grid-4 mb-3">
+          <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-number" id="myTotal">0</div><div class="stat-label">My Reports</div></div>
+          <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-number" id="myVerified">0</div><div class="stat-label">Verified</div></div>
+          <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-number" id="myPending">0</div><div class="stat-label">Pending</div></div>
+          <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-number" id="myRejected">0</div><div class="stat-label">Rejected</div></div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">Quick Actions</h3>
+          <div class="flex gap-1 flex-wrap">
+            <a href="/report.html" class="btn btn-primary">📢 Report Incident</a>
+            <a href="/map.html" class="btn btn-secondary">🗺 View Safety Map</a>
+            <a href="/map.html" class="btn btn-secondary">🔍 Check Route</a>
+          </div>
+        </div>
+
+        <div class="card mt-2">
+          <h3 class="section-title">Recent Activity</h3>
+          <div id="recentActivity"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- My Reports Tab -->
+      <div id="tab-myReports" class="hidden">
+        <div class="page-header" style="padding-top:0">
+          <div class="flex justify-between items-center">
+            <h1>My <span class="text-teal">Reports</span></h1>
+            <a href="/report.html" class="btn btn-primary btn-sm">+ New Report</a>
+          </div>
+        </div>
+
+        <div class="disclaimer-banner mb-2">
+          <span class="disc-icon">ℹ️</span>
+          <span>You can only edit pending reports. Verified or rejected reports cannot be modified.</span>
+        </div>
+
+        <div id="myReportsList"><div class="spinner"></div></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    Auth.redirectIfNotLoggedIn();
+    injectNavbar('dashboard');
+
+    const user = Auth.getUser();
+    document.getElementById('userName').textContent = user?.name || 'User';
+
+    let allMyReports = [];
+
+    function showTab(name) {
+      document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.add('hidden'));
+      document.getElementById('tab-' + name).classList.remove('hidden');
+      document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+      event?.target?.classList.add('active');
+    }
+
+    async function loadMyReports() {
+      try {
+        const { data, ok } = await apiRequest('GET', '/incidents/mine', null, true);
+        if (!ok || !data.success) throw new Error();
+        allMyReports = data.data;
+
+        // Update stats
+        document.getElementById('myTotal').textContent    = allMyReports.length;
+        document.getElementById('myVerified').textContent = allMyReports.filter(i => i.status === 'verified').length;
+        document.getElementById('myPending').textContent  = allMyReports.filter(i => i.status === 'pending').length;
+        document.getElementById('myRejected').textContent = allMyReports.filter(i => i.status === 'rejected').length;
+
+        // Recent activity
+        const activity = document.getElementById('recentActivity');
+        if (allMyReports.length === 0) {
+          activity.innerHTML = '<p class="text-muted">You haven\'t submitted any reports yet. <a href="/report.html">Submit your first report</a>.</p>';
+        } else {
+          activity.innerHTML = allMyReports.slice(0, 5).map(inc => renderIncidentCard(inc)).join('');
+        }
+
+        // My reports list
+        const list = document.getElementById('myReportsList');
+        if (allMyReports.length === 0) {
+          list.innerHTML = '<p class="text-muted text-center" style="padding:2rem">No reports yet. <a href="/report.html">Submit your first report!</a></p>';
+        } else {
+          list.innerHTML = allMyReports.map(inc => renderIncidentCard(inc, true)).join('');
+        }
+      } catch {
+        document.getElementById('recentActivity').innerHTML = '<p class="text-danger">Failed to load reports.</p>';
+        document.getElementById('myReportsList').innerHTML = '<p class="text-danger">Failed to load reports.</p>';
+      }
+    }
+
+    function renderIncidentCard(inc, withActions = false) {
+      const actionsHTML = withActions && inc.status === 'pending' ? `
+        <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
+          <a href="/report.html?edit=${inc.id}" class="btn btn-secondary btn-sm">✏ Edit</a>
+          <button class="btn btn-danger btn-sm" onclick="deleteReport(${inc.id}, this)">🗑 Delete</button>
+        </div>
+      ` : '';
+
+      return `
+        <div class="incident-card" style="border-left-color:${inc.color_hex}">
+          <div class="flex justify-between items-center mb-1">
+            <span style="font-size:0.75rem;color:${inc.color_hex};font-weight:700">${inc.category_name}</span>
+            ${statusBadge(inc.status)}
+          </div>
+          <h4 style="cursor:pointer" onclick="window.location.href='/incident.html?id=${inc.id}'">${inc.title}</h4>
+          <div class="meta mt-1">
+            <span>📍 ${inc.location_name}</span>
+            <span>🕐 ${timeAgo(inc.created_at)}</span>
+          </div>
+          ${actionsHTML}
+        </div>
+      `;
+    }
+
+    async function deleteReport(id, btn) {
+      if (!confirm('Are you sure you want to delete this report? This cannot be undone.')) return;
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+      try {
+        const { ok, data } = await apiRequest('DELETE', `/incidents/${id}`, null, true);
+        if (ok) {
+          loadMyReports();
+        } else {
+          alert(data.message || 'Failed to delete.');
+          btn.disabled = false;
+          btn.textContent = '🗑 Delete';
+        }
+      } catch {
+        alert('Network error.');
+        btn.disabled = false;
+        btn.textContent = '🗑 Delete';
+      }
+    }
+
+    loadMyReports();
+  </script>
+</body>
+</html>

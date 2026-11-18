@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeRoute Karachi — Presentation Deck</title>
+  <style>
+    :root {
+      --navy: #0d1b2a;
+      --navy-mid: #1b2a3b;
+      --navy-light: #243447;
+      --teal: #00b4d8;
+      --teal-light: #48cae4;
+      --white: #f8fafc;
+      --gray: #94a3b8;
+      --red: #ef4444;
+      --green: #10b981;
+      --amber: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--navy);
+      color: var(--white);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    /* Controls Bar */
+    .controls {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 54px;
+      background: rgba(13, 27, 42, 0.95);
+      border-bottom: 1px solid var(--navy-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      z-index: 1000;
+      backdrop-filter: blur(8px);
+    }
+    .brand { font-size: 1.1rem; font-weight: 800; color: var(--white); display: flex; align-items: center; gap: 0.5rem; }
+    .brand span { color: var(--teal); }
+    .nav-btns { display: flex; align-items: center; gap: 0.75rem; }
+    .btn {
+      background: var(--navy-light);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      padding: 0.35rem 0.9rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.85rem;
+    }
+    .btn:hover { background: var(--teal); color: var(--navy); }
+    .slide-num { font-size: 0.85rem; color: var(--gray); font-weight: 600; min-width: 65px; text-align: center; }
+
+    /* Slide Container */
+    .slide-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 70px 2rem 2rem;
+    }
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1100px;
+      min-height: 580px;
+      background: var(--navy-mid);
+      border: 1px solid var(--navy-light);
+      border-radius: 16px;
+      padding: 3rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      animation: fadeIn 0.3s ease-in-out;
+      position: relative;
+    }
+    .slide.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Typography */
+    .tag {
+      display: inline-block;
+      color: var(--teal);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    h1 { font-size: 2.4rem; color: var(--white); line-height: 1.2; margin-bottom: 1rem; }
+    h2 { font-size: 1.8rem; color: var(--white); margin-bottom: 0.5rem; }
+    h3 { font-size: 1.2rem; color: var(--teal); margin-bottom: 0.5rem; }
+    p { color: var(--gray); font-size: 1rem; line-height: 1.6; }
+
+    /* Card Grids */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin-top: 1.5rem; }
+    .card {
+      background: var(--navy);
+      border: 1px solid var(--navy-light);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--teal); }
+    .card h4 { font-size: 1.05rem; color: var(--white); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+    .card p { font-size: 0.88rem; color: var(--gray); line-height: 1.5; }
+
+    ul.bullet-list { list-style: none; margin-top: 1rem; }
+    ul.bullet-list li {
+      margin-bottom: 0.75rem;
+      padding-left: 1.5rem;
+      position: relative;
+      font-size: 0.95rem;
+      color: var(--gray);
+      line-height: 1.5;
+    }
+    ul.bullet-list li::before {
+      content: "•";
+      color: var(--teal);
+      font-size: 1.4rem;
+      position: absolute;
+      left: 0;
+      top: -3px;
+    }
+    ul.bullet-list li strong { color: var(--white); }
+
+    /* Footer in Slide */
+    .slide-footer {
+      position: absolute;
+      bottom: 1.5rem;
+      left: 3rem;
+      right: 3rem;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--gray);
+      border-top: 1px solid var(--navy-light);
+      padding-top: 0.75rem;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .slide { padding: 1.8rem; }
+      h1 { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="controls">
+    <div class="brand">🛡️ Safe<span>Route</span> Karachi</div>
+    <div class="nav-btns">
+      <button class="btn" onclick="prevSlide()">◀ Previous</button>
+      <span class="slide-num" id="slideIndicator">1 / 10</span>
+      <button class="btn" onclick="nextSlide()">Next ▶</button>
+      <button class="btn" onclick="window.print()" style="margin-left:0.5rem">🖨️ Print / Save PDF</button>
+    </div>
+  </header>
+
+  <main class="slide-container">
+
+    <!-- SLIDE 1 -->
+    <section class="slide active">
+      <span class="tag">Final Project & Hackathon Presentation</span>
+      <h1 style="font-size:3rem; margin-top: 1rem;">🛡️ SafeRoute Karachi</h1>
+      <h2 style="color:var(--teal); font-weight:400; margin-bottom:1.5rem;">Community-Powered Urban Safety Awareness & Incident Navigation Platform</h2>
+      <p style="font-size:1.15rem; max-width:800px; margin-bottom:2rem;">
+        An interactive, crowdsourced web application providing real-time civic awareness, incident pinpoints, and travel corridor threat scanning designed specifically for Karachi, Pakistan.
+      </p>
+      <div style="background:var(--navy); padding:1rem 1.5rem; border-left:4px solid var(--teal); border-radius:8px; display:inline-block;">
+        <span style="color:var(--white); font-weight:600;">Technology Stack:</span>
+        <span style="color:var(--gray);">Node.js • Express.js • PostgreSQL • Leaflet.js • OpenStreetMap • Vanilla JavaScript</span>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi — Built for Community Safety</span>
+        <span>Use Left/Right arrow keys to navigate</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 2 -->
+    <section class="slide">
+      <span class="tag">Problem Statement</span>
+      <h2>Urban Mobility & Safety Gaps in Karachi</h2>
+      <p>Navigating Pakistan's largest metropolis presents daily mobility, transit, and security hurdles.</p>
+      <div class="grid-2">
+        <div class="card" style="border-left: 3px solid var(--red);">
+          <h4 style="color:var(--red);">⚠️ Current Mobility Realities</h4>
+          <ul class="bullet-list">
+            <li><strong>Information Vacuum:</strong> Commuters routinely enter flooded zones, civic protest blocks, or crime hotspots without prior warning.</li>
+            <li><strong>Fragmented Information:</strong> Incident updates are trapped in disconnected WhatsApp groups and unvetted social media posts.</li>
+            <li><strong>Blind Route Planning:</strong> Mainstream routing tools prioritize travel time, remaining blind to immediate community alerts.</li>
+          </ul>
+        </div>
+        <div class="card" style="border-left: 3px solid var(--teal);">
+          <h4 style="color:var(--teal);">🎯 The Opportunity</h4>
+          <ul class="bullet-list">
+            <li><strong>Centralized Civic GIS:</strong> A single map displaying geotagged incidents across Karachi.</li>
+            <li><strong>Travel Corridor Awareness:</strong> Check for community reports within a 1.5 km corridor of your travel path.</li>
+            <li><strong>Structured Moderation:</strong> Distinguish between unverified tips and admin-verified incidents.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 2 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 3 -->
+    <section class="slide">
+      <span class="tag">Solution Overview</span>
+      <h2>The SafeRoute Karachi Ecosystem</h2>
+      <p>A unified, responsive platform built on principles of speed, accessibility, and community engagement.</p>
+      <div class="grid-3">
+        <div class="card">
+          <h4>🗺️ Interactive City Map</h4>
+          <p>Leaflet & OpenStreetMap integration centered on Karachi with color-coded incident markers and popups.</p>
+        </div>
+        <div class="card">
+          <h4>📢 Point-and-Click Reporting</h4>
+          <p>Click anywhere in Karachi to automatically capture coordinates and submit categorized incident details.</p>
+        </div>
+        <div class="card">
+          <h4>🛣️ Route Corridor Scanning</h4>
+          <p>Calculate routes and scan for community incidents within 1.5 km of the itinerary.</p>
+        </div>
+        <div class="card">
+          <h4>🛡️ Two-Tier Moderation</h4>
+          <p>Administrators review, verify, reject, or expire alerts to eliminate hoaxes and maintain trust.</p>
+        </div>
+        <div class="card">
+          <h4>📊 Real-Time Analytics</h4>
+          <p>Chart.js data visualizer illustrating incident frequency by category and 7-day reporting curves.</p>
+        </div>
+        <div class="card">
+          <h4>🔒 Privacy & Security</h4>
+          <p>Zero PII exposure for victims/offenders. Complete SQL parameterization and rate-limiting safeguards.</p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 3 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 4 -->
+    <section class="slide">
+      <span class="tag">Technical Architecture</span>
+      <h2>Lightweight, Framework-Free Architecture</h2>
+      <p>Engineered for high performance and compatibility without client-side framework overhead.</p>
+      <div class="grid-3">
+        <div class="card" style="border-top:3px solid var(--teal);">
+          <h4 style="color:var(--teal);">Frontend (Client)</h4>
+          <ul class="bullet-list" style="font-size:0.85rem;">
+            <li><strong>HTML5 & Custom CSS3:</strong> Dark navy & teal design system.</li>
+            <li><strong>Vanilla JavaScript (ES6+):</strong> Zero React/Angular bloat, instant page loading.</li>
+            <li><strong>Leaflet.js + OSM:</strong> Interactive vector map tiles.</li>
+            <li><strong>Chart.js v4:</strong> Dynamic administrative charts.</li>
+          </ul>
+        </div>
+        <div class="card" style="border-top:3px solid var(--teal-light);">
+          <h4 style="color:var(--teal-light);">Backend (REST API)</h4>
+          <ul class="bullet-list" style="font-size:0.85rem;">
+            <li><strong>Node.js & Express:</strong> High-throughput REST API.</li>
+            <li><strong>JWT & bcryptjs:</strong> Stateless authentication & 10-round salted password hashing.</li>
+            <li><strong>Rate Limiting:</strong> IP-level protection against spam reports.</li>
+            <li><strong>OSRM + Resilient Fallback:</strong> Guaranteed route calculation.</li>
+          </ul>
+        </div>
+        <div class="card" style="border-top:3px solid var(--green);">
+          <h4 style="color:var(--green);">Database (PostgreSQL)</h4>
+          <ul class="bullet-list" style="font-size:0.85rem;">
+            <li><strong>Relational Integrity:</strong> 5 normalized tables with foreign keys.</li>
+            <li><strong>Spatial Constraints:</strong> Coordinate range boundary validation.</li>
+            <li><strong>Audit Logging:</strong> `verifications` table tracks every admin decision.</li>
+            <li><strong>Parameterized Queries:</strong> Complete SQL injection defense.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 4 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 5 -->
+    <section class="slide">
+      <span class="tag">Taxonomy & Visualization</span>
+      <h2>7 Standardized Incident Categories</h2>
+      <p>Color-coded markers allow users to instantly recognize safety concerns at a glance.</p>
+      <div class="grid-2">
+        <div class="card">
+          <ul class="bullet-list">
+            <li><strong style="color:#e74c3c;">🔴 Street Crime / Mobile Snatching:</strong> Mugging, vehicle theft, and snatching hot-spots.</li>
+            <li><strong style="color:#e67e22;">🟠 Road Accidents:</strong> Collisions, overturned vehicles, and hazardous road segments.</li>
+            <li><strong style="color:#3498db;">🔵 Waterlogging / Flooding:</strong> Monsoon accumulation and submerged arteries.</li>
+            <li><strong style="color:#9b59b6;">🟣 Road Blockages / Protests:</strong> Demonstrations, processions, and police detours.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <ul class="bullet-list">
+            <li><strong style="color:#f39c12;">🟡 Poor Street Lighting:</strong> Faulty street lamps creating visibility risks.</li>
+            <li><strong style="color:#e91e63;">🌸 Public Harassment Concerns:</strong> Concerns reported along transit stops.</li>
+            <li><strong style="color:#7f8c8d;">⚪ Other Safety Concerns:</strong> Infrastructure, open manholes, or fallen wires.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 5 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 6 -->
+    <section class="slide">
+      <span class="tag">Flagship Feature</span>
+      <h2>Route Awareness & Corridor Scanning</h2>
+      <p>Empowering commuters to review active community reports along their trajectory.</p>
+      <div class="grid-2">
+        <div class="card">
+          <h4>How Route Calculation Works</h4>
+          <ul class="bullet-list">
+            <li><strong>Coordinate Geocoding:</strong> Select points via Karachi map clicks or text search.</li>
+            <li><strong>OSRM Driving Calculation:</strong> Computes the exact driving geometry, distance, and duration.</li>
+            <li><strong>Corridor Scanning:</strong> Evaluates active incidents within a 1.5 km corridor along the path using the Haversine equation.</li>
+            <li><strong>Resilient Fallback:</strong> If external routing is unavailable, an estimated corridor route is displayed seamlessly.</li>
+          </ul>
+        </div>
+        <div class="card" style="border-left: 3px solid var(--amber);">
+          <h4 style="color:var(--amber);">Ethical Safeguard Principle</h4>
+          <p style="margin-bottom:1rem;">
+            SafeRoute Karachi <strong>never calculates a deceptive "Safety Score"</strong> or claims that any street is guaranteed safe.
+          </p>
+          <p>
+            Emergency service helplines (Police 15, Rescue 1122, Edhi 115) are permanently featured across all pages to clarify that the app is an informational aid, not an emergency dispatcher.
+          </p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 6 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 7 -->
+    <section class="slide">
+      <span class="tag">Integrity & Governance</span>
+      <h2>Admin Moderation & Audit Pipeline</h2>
+      <p>Combatting fake news, hoaxes, and slander through structured verification.</p>
+      <div class="grid-3">
+        <div class="card" style="border-top:3px solid var(--amber);">
+          <h4 style="color:var(--amber);">1. Pending State</h4>
+          <p>User reports are automatically flagged as <strong>Pending</strong>. Visible on map with caution tags.</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--teal);">
+          <h4 style="color:var(--teal);">2. Inspection</h4>
+          <p>Admins examine descriptions, coordinate legitimacy, and corroborating reports on the queue.</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--green);">
+          <h4 style="color:var(--green);">3. Decision Logging</h4>
+          <p>Reports are updated to <strong>Verified</strong>, <strong>Rejected</strong>, or <strong>Expired</strong> with logged audit notes.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1.5rem;">
+        <h4>Permanent Audit Trail in PostgreSQL</h4>
+        <p>Every administrative action is stored in the <code>verifications</code> table: <code>admin_id</code>, <code>decision</code>, <code>comments</code>, and <code>created_at</code> timestamp.</p>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 7 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 8 -->
+    <section class="slide">
+      <span class="tag">Engineering Standards</span>
+      <h2>Security, Privacy & Data Protection</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h4>🔒 Application Security</h4>
+          <ul class="bullet-list">
+            <li><strong>Bcrypt Hashing:</strong> Passwords stored with 10 salt rounds.</li>
+            <li><strong>Role Guards:</strong> Admin APIs require valid JWT and verified admin role.</li>
+            <li><strong>Rate Limiting:</strong> Endpoints capped to prevent automated spam abuse.</li>
+            <li><strong>SQL Injection Shield:</strong> Parameterized queries prevent SQL injection.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>👤 Privacy & Ethical Engineering</h4>
+          <ul class="bullet-list">
+            <li><strong>No PII Collection:</strong> Victim names, vehicle registration numbers, or suspect identities are barred.</li>
+            <li><strong>Geofence Bounds:</strong> Submissions restricted to coordinates within Karachi (lat 24.5-25.2, lng 66.5-67.5).</li>
+            <li><strong>Community Terms:</strong> Guidelines posted across all submission forms.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 8 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 9 -->
+    <section class="slide">
+      <span class="tag">Demonstration Flow</span>
+      <h2>Demonstration Walkthrough</h2>
+      <div class="card" style="margin-top:1rem;">
+        <ul class="bullet-list">
+          <li><strong>Step 1: Explore City Map</strong> — Filter 15+ pre-seeded Karachi reports across Clifton, Saddar, Tariq Road, and Gulshan-e-Iqbal.</li>
+          <li><strong>Step 2: Calculate Route</strong> — Test route awareness between Numaish Chowrangi and Clifton to observe corridor incident detection.</li>
+          <li><strong>Step 3: User Incident Submission</strong> — Log in as a community user, drop a pin on the map, and submit an alert.</li>
+          <li><strong>Step 4: Admin Verification</strong> — Switch to Admin Dashboard, review the pending report, and approve it.</li>
+          <li><strong>Step 5: Visualizing Analytics</strong> — View live Chart.js statistics and area breakdowns updating dynamically.</li>
+        </ul>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi</span>
+        <span>Slide 9 of 10</span>
+      </div>
+    </section>
+
+    <!-- SLIDE 10 -->
+    <section class="slide">
+      <span class="tag">Impact & Summary</span>
+      <h2 style="font-size:2.2rem; color:var(--white);">Empowering Karachi with Safer Transit</h2>
+      <div class="grid-2" style="margin-top:2rem;">
+        <div class="card" style="border-left: 3px solid var(--teal);">
+          <h4 style="color:var(--teal);">Community Value</h4>
+          <ul class="bullet-list">
+            <li>Empowers daily commuters, students, couriers, and families.</li>
+            <li>Fills the gap between unverified rumors and emergency response.</li>
+            <li>Provides transparent, community-moderated safety intelligence.</li>
+          </ul>
+        </div>
+        <div class="card" style="border-left: 3px solid var(--green);">
+          <h4 style="color:var(--green);">Deliverables Completed</h4>
+          <ul class="bullet-list">
+            <li>8 Responsive, full-featured web pages.</li>
+            <li>Modular Node.js / Express REST API backend.</li>
+            <li>PostgreSQL schema with seeded demonstration data.</li>
+            <li>Deployment-ready code with comprehensive documentation.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>SafeRoute Karachi 🛡️</span>
+        <span>Thank you! Questions & Discussion</span>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const indicator = document.getElementById('slideIndicator');
+
+    function showSlide(index) {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (index + slides.length) % slides.length;
+      slides[currentSlide].classList.add('active');
+      indicator.textContent = `${currentSlide + 1} / ${slides.length}`;
+    }
+
+    function nextSlide() { showSlide(currentSlide + 1); }
+    function prevSlide() { showSlide(currentSlide - 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+      if (e.key === 'ArrowLeft') prevSlide();
+    });
+  </script>
+</body>
+</html>

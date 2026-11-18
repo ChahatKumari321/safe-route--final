@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Safety Map — SafeRoute Karachi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    body { overflow: hidden; }
+    .map-wrapper { display: flex; height: calc(100vh - 64px); }
+    .sidebar-toggle-btn {
+      position: fixed; top: 74px; left: 10px; z-index: 20;
+      background: var(--navy-mid); border: 1px solid var(--teal);
+      color: var(--teal); border-radius: var(--radius);
+      padding: 0.4rem 0.7rem; cursor: pointer; font-size: 1rem;
+      display: none;
+    }
+    @media (max-width: 1024px) { .sidebar-toggle-btn { display: block; } }
+
+    .route-panel {
+      background: var(--navy);
+      border-top: 1px solid var(--navy-light);
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+    }
+
+    .incident-count-badge {
+      background: var(--danger);
+      color: white;
+      border-radius: 50%;
+      width: 20px; height: 20px;
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700;
+      margin-left: 0.3rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+  <button class="sidebar-toggle-btn" id="sidebarToggle" onclick="toggleSidebar()">☰</button>
+
+  <div class="map-wrapper">
+    <!-- Sidebar -->
+    <div class="map-sidebar" id="mapSidebar">
+      <h3 style="font-size:0.95rem;margin-bottom:1rem;color:var(--teal)">🗺 Karachi Safety Map</h3>
+
+      <div class="disclaimer-banner mb-2">
+        <span class="disc-icon">⚠️</span>
+        <span style="font-size:0.75rem">Community reports only. Not verified by authorities. Emergency: <strong>15</strong></span>
+      </div>
+
+      <!-- Route Search -->
+      <div style="margin-bottom:1rem">
+        <div class="section-title">🔍 Route Awareness</div>
+        <div class="form-group" style="margin-bottom:0.5rem">
+          <label class="filter-label">From (click map or type)</label>
+          <input type="text" id="originInput" class="form-control" placeholder="Origin location" style="font-size:0.82rem;padding:0.5rem">
+        </div>
+        <div class="form-group" style="margin-bottom:0.5rem">
+          <label class="filter-label">To</label>
+          <input type="text" id="destInput" class="form-control" placeholder="Destination" style="font-size:0.82rem;padding:0.5rem">
+        </div>
+        <div style="display:flex;gap:0.4rem">
+          <button class="btn btn-primary btn-sm" onclick="calculateRoute()" style="flex:1" id="routeBtn">Get Route</button>
+          <button class="btn btn-secondary btn-sm" onclick="clearRoute()">Clear</button>
+        </div>
+        <div id="routeAlert" style="margin-top:0.5rem"></div>
+        <div id="routeInfo" style="margin-top:0.5rem"></div>
+      </div>
+
+      <!-- Filters -->
+      <div>
+        <div class="section-title">Filters</div>
+        <label class="filter-label">Category</label>
+        <div id="categoryFilters" style="margin-bottom:0.75rem"><div class="spinner" style="width:20px;height:20px;margin:0.5rem auto;border-width:2px"></div></div>
+
+        <label class="filter-label">Date Range</label>
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.75rem">
+          <input type="date" id="fromDate" class="form-control" style="font-size:0.78rem;padding:0.4rem">
+          <input type="date" id="toDate" class="form-control" style="font-size:0.78rem;padding:0.4rem">
+        </div>
+
+        <label class="filter-label">Status</label>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.75rem">
+          <button class="filter-chip active" data-status="" onclick="setStatusFilter(this)">All</button>
+          <button class="filter-chip" data-status="verified" onclick="setStatusFilter(this)">Verified</button>
+          <button class="filter-chip" data-status="pending" onclick="setStatusFilter(this)">Pending</button>
+        </div>
+
+        <button class="btn btn-primary btn-sm w-100" onclick="applyFilters()">Apply Filters</button>
+        <button class="btn btn-secondary btn-sm w-100 mt-1" onclick="resetFilters()">Reset</button>
+      </div>
+
+      <!-- Incidents in view -->
+      <div style="margin-top:1rem">
+        <div class="section-title">Incidents in View <span class="incident-count-badge" id="incidentCount">0</span></div>
+        <div id="incidentsList" style="max-height:250px;overflow-y:auto"></div>
+      </div>
+
+      <div style="margin-top:1rem">
+        <a href="/report.html" class="btn btn-primary btn-sm w-100" id="reportBtn">📢 Report Incident</a>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-container" style="flex:1">
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    injectNavbar('map');
+
+    // ─── MAP INIT ─────────────────────────────────────────────────────────────
+    const map = L.map('map').setView([24.8607, 67.0011], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    let markers = [];
+    let routeLayers = [];
+    let categories = [];
+    let activeCategories = new Set();
+    let activeStatus = '';
+    let originMarker = null, destMarker = null;
+    let originCoords = null, destCoords = null;
+    let clickMode = null; // 'origin' | 'dest' | null
+
+    // Map click handler for route point selection
+    map.on('click', (e) => {
+      if (clickMode === 'origin') {
+        setOrigin(e.latlng.lat, e.latlng.lng);
+        clickMode = null;
+      } else if (clickMode === 'dest') {
+        setDest(e.latlng.lat, e.latlng.lng);
+        clickMode = null;
+      }
+    });
+
+    function setOrigin(lat, lng) {
+      originCoords = { lat, lng };
+      document.getElementById('originInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      if (originMarker) map.removeLayer(originMarker);
+      originMarker = L.marker([lat, lng], {
+        icon: L.divIcon({ className: '', html: '<div style="background:#10b981;width:14px;height:14px;border-radius:50%;border:2px solid white"></div>' })
+      }).addTo(map).bindPopup('Origin').openPopup();
+    }
+
+    function setDest(lat, lng) {
+      destCoords = { lat, lng };
+      document.getElementById('destInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      if (destMarker) map.removeLayer(destMarker);
+      destMarker = L.marker([lat, lng], {
+        icon: L.divIcon({ className: '', html: '<div style="background:#ef4444;width:14px;height:14px;border-radius:50%;border:2px solid white"></div>' })
+      }).addTo(map).bindPopup('Destination').openPopup();
+    }
+
+    // ─── LOAD CATEGORIES ──────────────────────────────────────────────────────
+    async function loadCategories() {
+      const { data, ok } = await apiRequest('GET', '/incidents/categories');
+      if (!ok || !data.success) return;
+      categories = data.data;
+
+      const container = document.getElementById('categoryFilters');
+      container.innerHTML = `
+        <button class="filter-chip active" data-cat="" onclick="toggleCategoryFilter(this)">All</button>
+        ${categories.map(c => `
+          <button class="filter-chip" data-cat="${c.id}" onclick="toggleCategoryFilter(this)"
+                  style="border-color:${c.color_hex}22">
+            <span style="width:8px;height:8px;background:${c.color_hex};border-radius:50%;display:inline-block"></span>
+            ${c.category_name.split('/')[0].trim()}
+          </button>
+        `).join('')}
+      `;
+    }
+
+    // ─── LOAD INCIDENTS ───────────────────────────────────────────────────────
+    let allIncidents = [];
+
+    async function loadIncidents(params = '') {
+      clearMarkers();
+      try {
+        const { data, ok } = await apiRequest('GET', '/incidents?limit=500' + (params ? '&' + params : ''));
+        if (!ok || !data.success) return;
+        allIncidents = data.data;
+        renderMarkers(allIncidents);
+        updateSidebarList(allIncidents);
+      } catch (e) {
+        console.error('Failed to load incidents:', e);
+      }
+    }
+
+    function renderMarkers(incidents) {
+      clearMarkers();
+      incidents.forEach(inc => {
+        const color = getCategoryColor(inc.category_id, inc.color_hex);
+        const marker = createIncidentMarker(inc.latitude, inc.longitude, color);
+        marker.addTo(map);
+        marker.bindPopup(createPopupHTML(inc));
+        markers.push(marker);
+      });
+      document.getElementById('incidentCount').textContent = incidents.length;
+    }
+
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
+
+    function createPopupHTML(inc) {
+      return `
+        <div class="popup-card">
+          <div style="font-size:0.72rem;color:${inc.color_hex};font-weight:700;margin-bottom:0.3rem">${inc.category_name}</div>
+          <h4>${inc.title}</h4>
+          <p>${inc.description.substring(0, 120)}${inc.description.length > 120 ? '...' : ''}</p>
+          <div class="popup-meta">
+            ${statusBadge(inc.status)}
+            <span style="font-size:0.72rem;color:#94a3b8">📍 ${inc.location_name}</span>
+          </div>
+          <div style="font-size:0.72rem;color:#94a3b8;margin-top:0.3rem">🕐 Reported: ${timeAgo(inc.created_at)}</div>
+          <div style="font-size:0.72rem;color:#94a3b8">📅 Incident: ${formatDate(inc.incident_datetime)}</div>
+          <a href="/incident.html?id=${inc.id}" class="btn btn-primary btn-sm" style="margin-top:0.5rem;width:100%">View Details</a>
+        </div>
+      `;
+    }
+
+    function updateSidebarList(incidents) {
+      const list = document.getElementById('incidentsList');
+      if (incidents.length === 0) {
+        list.innerHTML = '<p style="font-size:0.78rem;color:var(--gray-300);text-align:center;padding:1rem">No incidents found.</p>';
+        return;
+      }
+      list.innerHTML = incidents.slice(0, 20).map(inc => `
+        <div style="padding:0.5rem 0;border-bottom:1px solid var(--navy-light);cursor:pointer"
+             onclick="map.setView([${inc.latitude},${inc.longitude}], 15)">
+          <div style="font-size:0.72rem;color:${inc.color_hex};font-weight:700">${inc.category_name}</div>
+          <div style="font-size:0.82rem;font-weight:600">${inc.title.substring(0, 45)}${inc.title.length > 45 ? '...' : ''}</div>
+          <div style="font-size:0.72rem;color:var(--gray-300)">${timeAgo(inc.created_at)} · ${inc.location_name}</div>
+        </div>
+      `).join('');
+      if (incidents.length > 20) {
+        list.innerHTML += `<p style="font-size:0.72rem;color:var(--gray-500);text-align:center;padding:0.5rem">+${incidents.length-20} more. Zoom in to filter.</p>`;
+      }
+    }
+
+    // ─── FILTERS ──────────────────────────────────────────────────────────────
+    function toggleCategoryFilter(btn) {
+      const cat = btn.dataset.cat;
+      if (cat === '') {
+        document.querySelectorAll('[data-cat]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeCategories.clear();
+      } else {
+        document.querySelector('[data-cat=""]').classList.remove('active');
+        btn.classList.toggle('active');
+        if (btn.classList.contains('active')) activeCategories.add(cat);
+        else activeCategories.delete(cat);
+        if (activeCategories.size === 0) document.querySelector('[data-cat=""]').classList.add('active');
+      }
+    }
+
+    function setStatusFilter(btn) {
+      document.querySelectorAll('[data-status]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeStatus = btn.dataset.status;
+    }
+
+    function applyFilters() {
+      const params = [];
+      if (activeCategories.size > 0) params.push(`category_id=${[...activeCategories][0]}`);
+      if (activeStatus) params.push(`status=${activeStatus}`);
+      const from = document.getElementById('fromDate').value;
+      const to   = document.getElementById('toDate').value;
+      if (from) params.push(`from_date=${from}`);
+      if (to)   params.push(`to_date=${to}T23:59:59`);
+      loadIncidents(params.join('&'));
+    }
+
+    function resetFilters() {
+      activeCategories.clear();
+      activeStatus = '';
+      document.getElementById('fromDate').value = '';
+      document.getElementById('toDate').value = '';
+      document.querySelectorAll('[data-cat]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('[data-status]').forEach(b => b.classList.remove('active'));
+      document.querySelector('[data-cat=""]')?.classList.add('active');
+      document.querySelector('[data-status=""]')?.classList.add('active');
+      loadIncidents();
+    }
+
+    // ─── ROUTE CALCULATION ────────────────────────────────────────────────────
+    async function calculateRoute() {
+      const originInput = document.getElementById('originInput').value.trim();
+      const destInput   = document.getElementById('destInput').value.trim();
+
+      // Geocode text inputs if coordinates not set
+      if (!originCoords && originInput) {
+        const c = await geocodeOSM(originInput);
+        if (c) { originCoords = c; } else {
+          showAlert('routeAlert', 'Could not find origin location. Try clicking the map.', 'warning');
+          return;
+        }
+      }
+      if (!destCoords && destInput) {
+        const c = await geocodeOSM(destInput);
+        if (c) { destCoords = c; } else {
+          showAlert('routeAlert', 'Could not find destination. Try clicking the map.', 'warning');
+          return;
+        }
+      }
+
+      if (!originCoords || !destCoords) {
+        showAlert('routeAlert', 'Please set both origin and destination. You can click the map to set points.', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('routeBtn');
+      setLoading(btn, true);
+      clearAlert('routeAlert');
+      clearRoutes();
+
+      try {
+        const { ok, data } = await apiRequest('POST', '/routes/calculate', {
+          origin_lat:  originCoords.lat,
+          origin_lng:  originCoords.lng,
+          dest_lat:    destCoords.lat,
+          dest_lng:    destCoords.lng,
+          origin_name: originInput || 'Origin',
+          dest_name:   destInput   || 'Destination',
+        }, true);
+
+        if (!ok || !data.success) {
+          showAlert('routeAlert', data.message || 'Route calculation failed.', 'danger');
+          return;
+        }
+
+        // Draw routes
+        const colors = ['#00b4d8', '#10b981', '#f59e0b'];
+        data.routes.forEach((route, i) => {
+          const layer = L.geoJSON(route.geometry, {
+            style: { color: colors[i % colors.length], weight: i === 0 ? 5 : 3, opacity: 0.8, dashArray: i > 0 ? '8 6' : null }
+          }).addTo(map);
+          routeLayers.push(layer);
+        });
+
+        // Fit map
+        const primary = data.routes[0];
+        if (primary) {
+          const coords = primary.geometry.coordinates.map(c => [c[1], c[0]]);
+          map.fitBounds(L.latLngBounds(coords).pad(0.1));
+        }
+
+        // Show info
+        const info = document.getElementById('routeInfo');
+        const totalNearby = data.routes[0]?.nearby_incidents?.length || 0;
+        const fallbackNote = data.fallback
+          ? `<div style="color:var(--warning);font-size:0.72rem;margin-bottom:0.3rem">⚠ Estimated route (live routing unavailable)</div>`
+          : '';
+        info.innerHTML = `
+          <div style="background:var(--navy);border-radius:var(--radius);padding:0.6rem;font-size:0.78rem">
+            ${fallbackNote}
+            <div style="color:var(--teal);font-weight:700">Route found!</div>
+            <div>Distance: ${data.routes[0]?.summary}</div>
+            <div style="color:${totalNearby > 0 ? 'var(--warning)' : 'var(--success)'}">
+              ${totalNearby} community report(s) near this route
+            </div>
+            <div style="color:var(--gray-500);margin-top:0.3rem;font-size:0.72rem">${data.disclaimer}</div>
+          </div>
+        `;
+
+        // Highlight nearby incidents
+        if (data.routes[0]?.nearby_incidents?.length > 0) {
+          renderMarkers(data.routes[0].nearby_incidents);
+        }
+
+      } catch (e) {
+        showAlert('routeAlert', 'Network error. Routing service may be unavailable.', 'danger');
+      } finally {
+        setLoading(btn, false, 'Get Route');
+      }
+    }
+
+    function clearRoute() {
+      clearRoutes();
+      if (originMarker) map.removeLayer(originMarker);
+      if (destMarker)   map.removeLayer(destMarker);
+      originMarker = destMarker = originCoords = destCoords = null;
+      document.getElementById('originInput').value = '';
+      document.getElementById('destInput').value   = '';
+      document.getElementById('routeInfo').innerHTML = '';
+      clearAlert('routeAlert');
+      loadIncidents();
+    }
+
+    function clearRoutes() {
+      routeLayers.forEach(l => map.removeLayer(l));
+      routeLayers = [];
+    }
+
+    // Simple Nominatim geocoder
+    async function geocodeOSM(query) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', Karachi')}&format=json&limit=1`;
+        const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const data = await res.json();
+        if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      } catch {}
+      return null;
+    }
+
+    function toggleSidebar() {
+      document.getElementById('mapSidebar').classList.toggle('open');
+    }
+
+    // ─── INIT ─────────────────────────────────────────────────────────────────
+    // Handle URL param for category pre-filter
+    const urlParams = new URLSearchParams(window.location.search);
+    const preCategory = urlParams.get('category');
+    if (preCategory) {
+      activeCategories.add(preCategory);
+      setTimeout(() => {
+        const btn = document.querySelector(`[data-cat="${preCategory}"]`);
+        if (btn) { btn.classList.add('active'); document.querySelector('[data-cat=""]')?.classList.remove('active'); }
+      }, 500);
+    }
+
+    loadCategories();
+    loadIncidents(preCategory ? `category_id=${preCategory}` : '');
+  </script>
+</body>
+</html>

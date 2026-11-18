@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Incident — SafeRoute Karachi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+
+  <div class="container" style="padding-top:2rem;padding-bottom:3rem">
+    <div class="page-header" style="padding-top:0">
+      <h1>📢 Report an <span class="text-teal">Incident</span></h1>
+      <p class="text-muted">Help your community by reporting safety concerns in Karachi.</p>
+    </div>
+
+    <div class="disclaimer-banner mb-3">
+      <span class="disc-icon">⚠️</span>
+      <span><strong>Community Guidelines:</strong> Submit only factual, good-faith reports. Do NOT include personal information of individuals. Reports are reviewed by administrators. False or misleading reports will be removed. This platform is NOT a replacement for emergency services. <strong>Emergency: 15 (Police) | 1122 (Rescue)</strong></span>
+    </div>
+
+    <div id="alertBox"></div>
+    <div id="successBox"></div>
+
+    <div class="report-layout">
+      <!-- FORM -->
+      <div class="card">
+        <h3 class="section-title">Incident Details</h3>
+        <form id="reportForm" novalidate>
+          <div class="form-group">
+            <label for="title">Incident Title *</label>
+            <input type="text" id="title" class="form-control" placeholder="Brief title describing the incident" required maxlength="200">
+            <small>Minimum 5 characters. Be descriptive but avoid personal names.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="category">Incident Category *</label>
+            <select id="category" class="form-control" required>
+              <option value="">— Select category —</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description *</label>
+            <textarea id="description" class="form-control" placeholder="Describe what happened. Do not include personal information of any individuals." required maxlength="2000"></textarea>
+            <small>Minimum 20 characters. Be factual. Do not expose victim/offender identities.</small>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label for="incidentDate">Date & Time of Incident *</label>
+              <input type="datetime-local" id="incidentDate" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="locationName">Area / Landmark *</label>
+              <input type="text" id="locationName" class="form-control" placeholder="e.g., Tariq Road, PECHS Block 2" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Location on Map *</label>
+            <p style="font-size:0.82rem;color:var(--gray-300);margin-bottom:0.5rem">
+              📍 Click on the map to pin the exact incident location.
+            </p>
+            <div id="report-map"></div>
+            <div id="coordDisplay" style="margin-top:0.5rem;font-size:0.82rem;color:var(--gray-300)">
+              No location selected yet.
+            </div>
+            <input type="hidden" id="latitude">
+            <input type="hidden" id="longitude">
+          </div>
+
+          <div style="padding:0.75rem;background:var(--navy);border-radius:var(--radius);margin-bottom:1.2rem;font-size:0.78rem;color:var(--gray-300)">
+            By submitting this report, you confirm that the information is accurate to the best of your knowledge and does not contain personal identifiers of any individuals.
+          </div>
+
+          <button type="submit" id="submitBtn" class="btn btn-primary btn-lg w-100">Submit Report</button>
+        </form>
+      </div>
+
+      <!-- MAP PANEL -->
+      <div>
+        <div class="card" style="margin-bottom:1rem">
+          <h3 class="section-title" style="margin-bottom:0.5rem">📍 Pin Location</h3>
+          <p style="font-size:0.82rem;color:var(--gray-300);margin-bottom:0.75rem">Click anywhere on the Karachi map to set the incident location.</p>
+
+          <div style="margin-bottom:0.75rem">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search Karachi location..."
+                   style="font-size:0.82rem" oninput="searchLocation()">
+            <div id="searchResults" style="margin-top:0.3rem"></div>
+          </div>
+        </div>
+
+        <div class="card" style="font-size:0.82rem">
+          <h3 class="section-title">Category Guide</h3>
+          <div id="categoryGuide"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    Auth.redirectIfNotLoggedIn();
+    injectNavbar('report');
+
+    let pinMarker = null;
+    let searchTimer = null;
+
+    // ─── INIT MAP ─────────────────────────────────────────────────────────────
+    const map = L.map('report-map').setView([24.8607, 67.0011], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 19
+    }).addTo(map);
+
+    map.on('click', (e) => {
+      setPin(e.latlng.lat, e.latlng.lng);
+    });
+
+    function setPin(lat, lng) {
+      if (pinMarker) map.removeLayer(pinMarker);
+      pinMarker = L.marker([lat, lng]).addTo(map).bindPopup('📍 Incident Location').openPopup();
+      document.getElementById('latitude').value  = lat.toFixed(7);
+      document.getElementById('longitude').value = lng.toFixed(7);
+      document.getElementById('coordDisplay').innerHTML =
+        `✅ Location selected: <strong>${lat.toFixed(5)}, ${lng.toFixed(5)}</strong>`;
+      document.getElementById('coordDisplay').style.color = 'var(--success)';
+    }
+
+    // ─── LOAD CATEGORIES ──────────────────────────────────────────────────────
+    async function loadCategories() {
+      const { data, ok } = await apiRequest('GET', '/incidents/categories');
+      if (!ok || !data.success) return;
+
+      const select = document.getElementById('category');
+      const guide  = document.getElementById('categoryGuide');
+      data.data.forEach(cat => {
+        select.innerHTML += `<option value="${cat.id}">${cat.category_name}</option>`;
+      });
+      guide.innerHTML = data.data.map(c => `
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--navy-light)">
+          <div style="width:10px;height:10px;background:${c.color_hex};border-radius:50%;flex-shrink:0"></div>
+          <span style="color:var(--gray-100)">${c.category_name}</span>
+        </div>
+      `).join('');
+    }
+
+    // ─── LOCATION SEARCH ──────────────────────────────────────────────────────
+    function searchLocation() {
+      clearTimeout(searchTimer);
+      const query = document.getElementById('searchInput').value.trim();
+      if (query.length < 3) { document.getElementById('searchResults').innerHTML = ''; return; }
+      searchTimer = setTimeout(async () => {
+        try {
+          const url  = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', Karachi')}&format=json&limit=5`;
+          const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+          const data = await res.json();
+          const results = document.getElementById('searchResults');
+          if (data.length === 0) { results.innerHTML = '<p style="font-size:0.78rem;color:var(--gray-500)">No results found.</p>'; return; }
+          results.innerHTML = data.map(r => `
+            <div onclick="selectSearchResult(${r.lat}, ${r.lon}, '${r.display_name.replace(/'/g, '\\\'').substring(0,60)}')"
+                 style="padding:0.4rem 0.6rem;background:var(--navy);border-radius:var(--radius);margin-top:0.2rem;cursor:pointer;font-size:0.78rem;color:var(--gray-100)">
+              📍 ${r.display_name.substring(0, 70)}...
+            </div>
+          `).join('');
+        } catch {}
+      }, 500);
+    }
+
+    function selectSearchResult(lat, lon, name) {
+      setPin(parseFloat(lat), parseFloat(lon));
+      map.setView([lat, lon], 15);
+      document.getElementById('locationName').value = name;
+      document.getElementById('searchInput').value = name;
+      document.getElementById('searchResults').innerHTML = '';
+    }
+
+    // ─── SUBMIT FORM ──────────────────────────────────────────────────────────
+    document.getElementById('reportForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAlert('alertBox');
+
+      const title       = document.getElementById('title').value.trim();
+      const category    = document.getElementById('category').value;
+      const description = document.getElementById('description').value.trim();
+      const incDate     = document.getElementById('incidentDate').value;
+      const locName     = document.getElementById('locationName').value.trim();
+      const lat         = document.getElementById('latitude').value;
+      const lng         = document.getElementById('longitude').value;
+      const btn         = document.getElementById('submitBtn');
+
+      if (!title || !category || !description || !incDate || !locName) {
+        return showAlert('alertBox', 'Please fill in all required fields.', 'danger');
+      }
+      if (!lat || !lng) {
+        return showAlert('alertBox', 'Please click the map to set the incident location.', 'danger');
+      }
+
+      setLoading(btn, true);
+      try {
+        const { ok, data } = await apiRequest('POST', '/incidents', {
+          title, category_id: parseInt(category),
+          description, incident_datetime: new Date(incDate).toISOString(),
+          location_name: locName, latitude: parseFloat(lat), longitude: parseFloat(lng),
+        }, true);
+
+        if (ok && data.success) {
+          document.getElementById('successBox').innerHTML = `
+            <div class="alert alert-success">
+              ✅ Report submitted successfully! It is now pending administrator review.<br>
+              <small>Reports are reviewed and community markers are updated regularly.</small><br>
+              <a href="/dashboard.html" class="btn btn-primary btn-sm" style="margin-top:0.5rem">View My Reports</a>
+              <a href="/map.html" class="btn btn-secondary btn-sm" style="margin-top:0.5rem">View on Map</a>
+            </div>
+          `;
+          document.getElementById('reportForm').reset();
+          if (pinMarker) { map.removeLayer(pinMarker); pinMarker = null; }
+          document.getElementById('coordDisplay').innerHTML = 'No location selected yet.';
+          document.getElementById('coordDisplay').style.color = 'var(--gray-300)';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          showAlert('alertBox', data.message || 'Failed to submit report. Please try again.', 'danger');
+        }
+      } catch {
+        showAlert('alertBox', 'Network error. Please check your connection.', 'danger');
+      } finally {
+        setLoading(btn, false, 'Submit Report');
+      }
+    });
+
+    // Set default datetime to now
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('incidentDate').value = now.toISOString().slice(0, 16);
+
+    loadCategories();
+  </script>
+</body>
+</html>

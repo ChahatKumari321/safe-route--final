@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeRoute Karachi — Community Safety Platform</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div style="font-size:4rem;margin-bottom:1rem">🛡</div>
+      <h1 class="hero-title">Stay Informed.<br><span>Stay Safe in Karachi.</span></h1>
+      <p class="hero-subtitle">
+        SafeRoute Karachi is a community-powered safety awareness platform.
+        View, report, and explore incidents across the city to make more informed travel decisions.
+      </p>
+      <div class="disclaimer-banner" style="text-align:left;margin-bottom:2rem;">
+        <span class="disc-icon">⚠️</span>
+        <span><strong>Important:</strong> Community reports are not verified in real-time. This platform does NOT guarantee route safety. Always use official emergency services. For emergencies, call <strong>15</strong> (Police), <strong>115</strong> (Rescue), or <strong>1122</strong>.</span>
+      </div>
+      <div class="hero-actions">
+        <a href="/map.html" class="btn btn-primary btn-lg">🗺 View Safety Map</a>
+        <a href="/register.html" class="btn btn-secondary btn-lg">Join Community</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE STATS -->
+  <section style="padding:3rem 1.5rem;background:var(--navy-mid)">
+    <div class="container">
+      <h2 class="text-center mb-3">Platform Overview</h2>
+      <div class="grid-4" id="statsGrid">
+        <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-number" id="stat-total">—</div><div class="stat-label">Total Reports</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-number" id="stat-verified">—</div><div class="stat-label">Verified</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-number" id="stat-pending">—</div><div class="stat-label">Pending Review</div></div>
+        <div class="stat-card"><div class="stat-icon">📍</div><div class="stat-number" id="stat-areas">—</div><div class="stat-label">Areas Covered</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="container">
+      <h2 class="text-center">How It Works</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🗺</div>
+          <h3>Interactive Map</h3>
+          <p>Explore Karachi's real-time community incident map with color-coded markers for each category.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📢</div>
+          <h3>Report Incidents</h3>
+          <p>Submit safety concerns, road problems, or security incidents with precise location pins.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔍</div>
+          <h3>Route Awareness</h3>
+          <p>Enter your origin and destination to see community-reported incidents along your route.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✅</div>
+          <h3>Verified Reports</h3>
+          <p>Administrators review and verify reports, so you can distinguish confirmed from unverified data.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RECENT INCIDENTS PREVIEW -->
+  <section style="padding:3rem 1.5rem">
+    <div class="container">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Recent Community Reports</h2>
+        <a href="/map.html" class="btn btn-secondary btn-sm">View All on Map →</a>
+      </div>
+      <div class="disclaimer-banner mb-2">
+        <span class="disc-icon">ℹ️</span>
+        <span>These are community-submitted reports and may not be verified. Items marked [DEMO] are fictional sample data for demonstration purposes only.</span>
+      </div>
+      <div id="recentIncidents"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section style="padding:3rem 1.5rem;background:var(--navy-mid)">
+    <div class="container">
+      <h2 class="text-center mb-3">Incident Categories</h2>
+      <div class="grid-3" id="categoriesGrid"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <div class="footer-brand">Safe<span>Route</span> Karachi</div>
+      <p class="footer-disclaimer">
+        SafeRoute Karachi is a community awareness tool only. Reports are submitted by community members and are not official police or emergency records. Always contact official emergency services in emergencies.
+        Police: <strong>15</strong> | Rescue: <strong>1122</strong> | Edhi Foundation: <strong>115</strong>
+      </p>
+      <p style="margin-top:1rem">&copy; 2024 SafeRoute Karachi. Built for community safety awareness.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    injectNavbar('home');
+
+    // Load stats
+    async function loadStats() {
+      try {
+        const { data, ok } = await apiRequest('GET', '/admin/stats');
+        if (ok && data.success) {
+          document.getElementById('stat-total').textContent    = data.data.status.total;
+          document.getElementById('stat-verified').textContent = data.data.status.verified;
+          document.getElementById('stat-pending').textContent  = data.data.status.pending;
+          document.getElementById('stat-areas').textContent    = data.data.areas.length;
+        }
+      } catch {}
+    }
+
+    // Load recent incidents
+    async function loadRecent() {
+      const container = document.getElementById('recentIncidents');
+      try {
+        const { data, ok } = await apiRequest('GET', '/incidents?limit=6&status=verified');
+        if (!ok || !data.success) throw new Error();
+        if (data.data.length === 0) {
+          container.innerHTML = '<p class="text-muted text-center">No verified incidents yet. Be the first to report!</p>';
+          return;
+        }
+        container.innerHTML = data.data.map(inc => `
+          <div class="incident-card" onclick="window.location.href='/incident.html?id=${inc.id}'"
+               style="border-left-color:${inc.color_hex}">
+            <div class="flex justify-between items-center mb-1">
+              <span style="font-size:0.75rem;color:${inc.color_hex};font-weight:700">${inc.category_name}</span>
+              ${statusBadge(inc.status)}
+            </div>
+            <h4>${inc.title}</h4>
+            <p style="font-size:0.82rem;color:var(--gray-300);margin:0.3rem 0">${inc.description.substring(0,100)}...</p>
+            <div class="meta">
+              <span>📍 ${inc.location_name}</span>
+              <span>🕐 ${timeAgo(inc.created_at)}</span>
+              <span>👤 ${inc.reporter_name}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch {
+        container.innerHTML = '<p class="text-muted text-center">Could not load incidents.</p>';
+      }
+    }
+
+    // Load categories
+    async function loadCategories() {
+      const grid = document.getElementById('categoriesGrid');
+      try {
+        const { data, ok } = await apiRequest('GET', '/incidents/categories');
+        if (!ok || !data.success) throw new Error();
+        grid.innerHTML = data.data.map(cat => `
+          <div class="card" style="border-left:4px solid ${cat.color_hex};cursor:pointer"
+               onclick="window.location.href='/map.html?category=${cat.id}'">
+            <div style="display:flex;align-items:center;gap:0.7rem">
+              <div style="width:14px;height:14px;background:${cat.color_hex};border-radius:50%"></div>
+              <span style="font-weight:600;font-size:0.9rem">${cat.category_name}</span>
+            </div>
+          </div>
+        `).join('');
+      } catch {
+        grid.innerHTML = '<p class="text-muted">Could not load categories.</p>';
+      }
+    }
+
+    loadStats();
+    loadRecent();
+    loadCategories();
+  </script>
+</body>
+</html>
